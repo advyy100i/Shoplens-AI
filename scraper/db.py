@@ -53,7 +53,11 @@ class Review(Base):
 def get_engine(echo: bool = False):
     if not DATABASE_URL:
         raise RuntimeError('DATABASE_URL not set in environment')
-    engine = create_engine(DATABASE_URL, echo=echo)
+    # SQLAlchemy expects the scheme 'postgresql://' (not 'postgres://') for the PG dialect
+    url = DATABASE_URL
+    if url.startswith('postgres://'):
+        url = 'postgresql://' + url.split('://', 1)[1]
+    engine = create_engine(url, echo=echo)
     return engine
 
 

@@ -1,0 +1,95 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>ShopLensAI Demo</title>
+		<style>
+			:root{ --bg:#f7f8fb; --card:#ffffff; --muted:#6b7280; --accent:#2563eb }
+			body { font-family: Inter, system-ui, Arial; max-width: 1000px; margin: 24px auto; background:var(--bg); color:#111 }
+			.container{ padding:20px }
+			.card { background:var(--card); border-radius:8px; padding:14px; box-shadow:0 1px 4px rgba(16,24,40,0.04); margin-bottom:12px }
+			.controls { display:flex; gap:8px; align-items:center }
+			textarea { width:100%; height:80px; border:1px solid #e6e9ef; border-radius:6px; padding:8px }
+			input[type=text] { width:100%; padding:8px; border-radius:6px; border:1px solid #e6e9ef }
+			.results { margin-top: 12px; display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px }
+			.result-card{ display:flex; gap:10px; padding:10px; background:linear-gradient(180deg,#fff,#fbfdff); border-radius:8px; align-items:flex-start }
+			.thumb{ width:96px; height:96px; object-fit:cover; border-radius:6px; background:#f0f2f7 }
+			.meta{ flex:1 }
+			.title{ font-weight:600; margin:0 0 6px 0 }
+			.dist{ color:var(--muted); font-size:12px }
+			.link{ margin-top:8px; display:inline-block; color:var(--accent); text-decoration:none }
+			.small{ color:var(--muted); font-size:13px }
+			.loading{ opacity:0.7; font-style:italic }
+		</style>
+	</head>
+	<body>
+		<h1>ShopLensAI</h1>
+
+		<section class="container">
+			<h2>Text search</h2>
+			<textarea id="text-query" placeholder="Enter product description or query"></textarea>
+			<div style="margin-top:8px" class="controls">
+				<button id="text-search">Search</button>
+				<select id="text-k"><option>5</option><option>10</option></select>
+				<span class="small">Tip: paste a product title for better matches</span>
+			</div>
+			<div id="text-results" class="results"></div>
+		</section>
+
+		<section style="margin-top:20px" class="container">
+			<h2>Image search</h2>
+			<input id="image-url" type="text" placeholder="Image URL" />
+			<div style="margin-top:8px">
+				<button id="image-search">Search</button>
+				<select id="image-k"><option>5</option><option>10</option></select>
+			</div>
+			<div id="image-results" class="results"></div>
+		</section>
+
+
+		<script>
+			async function postJson(path, obj){
+				const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(obj)});
+				return r.json();
+			}
+
+			function renderResults(target, rows){
+				const el = document.getElementById(target);
+				el.innerHTML = '';
+				if(!rows || rows.length===0){ el.innerText = 'no results'; return }
+				for(const r of rows){
+					const card = document.createElement('div'); card.className='result-card';
+					const img = document.createElement('img'); img.className='thumb';
+					img.src = (r.image_urls && r.image_urls.length>0) ? r.image_urls[0] : 'https://via.placeholder.com/96?text=No+Image';
+					img.alt = r.title || '';
+					const meta = document.createElement('div'); meta.className='meta';
+					const t = document.createElement('div'); t.className='title'; t.innerText = r.title || 'No title';
+					const d = document.createElement('div'); d.className='dist'; d.innerText = r.dist ? `score: ${r.dist.toFixed(3)}` : '';
+					const link = document.createElement('a'); link.className='link'; link.href = r.page_url; link.target='_blank'; link.innerText='Open product';
+					meta.appendChild(t); meta.appendChild(d); meta.appendChild(link);
+					card.appendChild(img); card.appendChild(meta);
+					el.appendChild(card);
+				}
+			}
+
+			document.getElementById('text-search').addEventListener('click', async ()=>{
+				const q = document.getElementById('text-query').value.trim();
+				const k = parseInt(document.getElementById('text-k').value);
+				if(!q) return alert('enter query');
+				const res = await postJson('/search/text', {query: q, top_k: k});
+				renderResults('text-results', res.results);
+			});
+
+			document.getElementById('image-search').addEventListener('click', async ()=>{
+				const url = document.getElementById('image-url').value.trim();
+				const k = parseInt(document.getElementById('image-k').value);
+				if(!url) return alert('enter image url');
+				const res = await postJson('/search/image', {image_url: url, top_k: k});
+				renderResults('image-results', res.results);
+			});
+
+            
+		</script>
+	</body>
+</html>
