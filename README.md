@@ -1,108 +1,80 @@
-# ShopLensAI — Local demo
+# ShopLensAI — Local demo (updated)
 
-Quick demo project that scrapes product pages (Amazon / Flipkart) and stores products + reviews in PostgreSQL, computes text & image embeddings (pgvector), and exposes simple search endpoints + a tiny UI.
+Quick demo project that scrapes product pages (Amazon / Flipkart / Myntra) and stores products + reviews in PostgreSQL, computes text & image embeddings (pgvector or JSONB fallback), and exposes simple search endpoints + a tiny UI.
 
-This README gives fast local steps and how to seed 1,000 products for testing.
+This README includes an up-to-date quick guide to seed 100 products for testing.
 
 ## Requirements
 - Python 3.9+
-- PostgreSQL with `pgvector` extension (the project expects a running Postgres and DATABASE_URL set in `.env`)
+- PostgreSQL (with `pgvector` recommended). If using Docker Compose this is automated.
 - A virtualenv is recommended
 
 ## Quickstart (Windows PowerShell)
 
 1. Activate virtualenv and install requirements
-
 ```powershell
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-2. Ensure Postgres is running and `DATABASE_URL` is set in `.env` (example: `postgresql://postgres:postgres@localhost:5432/shoplensai`). Create DB and run `scraper/init_db.py` if present.
+2. Ensure Postgres is running and `DATABASE_URL` is set in `.env` (example: `postgresql://postgres:postgres@db:5432/shoplensai`). If using Docker (recommended) see Docker steps below.
 
-3. Seed 1,000 products (recommended: synthetic — fast and safe)
+3. Seed 100 products (two safe options)
 
+- Fast & safe: synthetic 100 Amazon.in-like products (recommended for development)
 ```powershell
-# create 1000 synthetic Amazon.in-like products
-python scripts/seed_products.py --mode synthetic --count 1000
+# create 100 synthetic placeholder products
+python scripts/seed_products.py --mode synthetic --count 100
 ```
 
-If you prefer real product pages (slower, may be blocked) you can run scrape mode — be polite and use `--delay`:
-
+- Real product pages (scrape 100 real Amazon.in results — slower, may trigger anti-bot protections)
 ```powershell
-# scrape product pages from amazon.in search pages (may trigger blocks)
-python scripts/seed_products.py --mode scrape --count 200 --delay 1.5
+# polite scraping, add --delay to avoid triggers (use proxies for large crawls)
+python scripts/seed_products.py --mode scrape --count 100 --delay 1.5
 ```
+Note: Scraping at scale may violate site ToS — use responsibly.
 
-4. Compute embeddings for the newly added products
-
-Run the project's embeddings CLI (example):
-
+4. Compute embeddings for new products (only unembedded rows)
 ```powershell
-# compute embeddings for products (this script lives at scraper/embeddings_cli.py)
-python scraper/embeddings_cli.py --batch-size 32
+# process only missing embeddings, batched
+python -m scraper.embeddings_cli --batch-size 32 --limit 100
 ```
 
 5. Run the demo API + UI
-
 ```powershell
 uvicorn scraper.api:app --host 127.0.0.1 --port 8000 --reload
-# then open http://127.0.0.1:8000/ to use the UI
+# open http://127.0.0.1:8000/
 ```
+
+## Docker (optional, recommended for reproducible local dev)
+1. Copy `.env.example` → `.env` and adjust as needed.
+2. Build & start
+```powershell
+docker-compose up --build -d
+```
+3. Create DB tables (once)
+```powershell
+docker-compose exec web python - <<'PY'
+from scraper.db import get_engine, Base
+eng = get_engine()
+Base.metadata.create_all(eng)
+print('tables created')
+PY
+```
+4. Seed and run embeddings inside the container or on host as above.
 
 ## Endpoints
 - POST /search/text  — body: {"query":"...","top_k":5}
 - POST /search/image — body: {"image_url":"...","top_k":5}
+- UI at `/` for interactive search and thumbnails
 
-The UI at `/` provides simple controls for text and image search.
+## Notes & caveats
+- Synthetic seeder is ideal to quickly populate 100 products for UI/embedding tests.
+- Scraping Amazon/Flipkart may be blocked or violate ToS — use proxies, rate-limiting, and obey robots.txt for production crawls.
+- If you do not have `pgvector` in Postgres, the project falls back to JSONB storage and Python-side nearest-neighbor as a temporary measure.
+- Embedding models can be large — prefer a GPU or run smaller batches on CPU.
 
-## Notes and caveats
-- The synthetic seeder generates placeholder products (titles, descriptions, images) and is ideal for load testing and UI/embedding development.
-- Scraping Amazon/Flipkart at scale may violate their Terms of Service and will likely trigger rate-limiting or blocks — use proxies, IP rotation, and obey robots.txt when crawling.
-- Embedding models (sentence-transformers / CLIP) can be CPU and memory heavy. If you have a GPU, the embedding speed improves significantly.
-- The project uses PostgreSQL + `pgvector` for vector storage and nearest-neighbor queries. Make sure the extension is installed in your DB.
-
-## Next steps
-- Add a background worker for non-blocking scrape+embed jobs.
-- Add admin UI for reviewing failed embeddings and re-embedding.
-- Add vector index tuning (ivfflat/HNSW) when scaling to >100k vectors.
-
-If you'd like, I can add a one-click script that seeds + embeds + launches the app. Tell me which you'd prefer and I'll implement it.# Audio_Summarization — Data Acquisition (Step 1)
-
-This repository contains the Step 1 implementation: a Playwright-based scraper that collects product data (images, titles, descriptions, prices, and reviews) from e-commerce sites and stores structured data into PostgreSQL.
-
-What you get:
-- Playwright scraper with user-agent rotation and basic anti-bot handling
-- SQLAlchemy models for `products`, `reviews`, and `sources`
-- CLI runner to start scraping a list of seed URLs
-- `.env.example` for database configuration
-
-Quick local dev guide
-1. Install Python 3.9+ and create a venv
-2. pip install -r requirements.txt
-3. Install Playwright browsers: `python -m playwright install`
-4. Create a PostgreSQL database and enable `pgvector` extension
-5. Copy `.env.example` to `.env` and set credentials
-6. Run the init script: `python -m scraper.init_db`
-7. Run scraper: `python -m scraper.run --seeds seeds.txt`
-
-File structure
-
-```
-shoplensai/
-├─ scraper/
-│  ├─ __init__.py
-│  ├─ db.py             # SQLAlchemy models + engine
-│  ├─ storage.py        # functions to save products and reviews
-│  ├─ play_scraper.py   # Playwright-based scraper
-│  ├─ utils.py          # helpers: UA rotation, throttling
-│  ├─ init_db.py        # create tables
-│  └─ run.py            # CLI runner
-├─ requirements.txt
-├─ README.md
-└─ .env.example
-```
-
-Notes
-- This step focuses on acquiring and storing data. Future steps will add embedding generation and FastAPI.
-- Scraping e-commerce sites like Amazon/Flipkart may violate their ToS — use responsibly and for allowed research.
+## Next suggestions
+- Run the embeddings CLI after seeding so image searches are accurate.
+- Consider Docker + Docker Compose for reproducible demos.
+- For production: add a background worker to compute embeddings asynchronously and a vector index (pgvector ivf/HNSW or FAISS) for scale.
