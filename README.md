@@ -1,80 +1,162 @@
-# ShopLensAI — Local demo (updated)
+---
 
-Quick demo project that scrapes product pages (Amazon / Flipkart / Myntra) and stores products + reviews in PostgreSQL, computes text & image embeddings (pgvector or JSONB fallback), and exposes simple search endpoints + a tiny UI.
+# ShopLensAI
 
-This README includes an up-to-date quick guide to seed 100 products for testing.
+**ShopLensAI** is an intelligent product search and recommendation engine.
+It scrapes product data from major e-commerce sites (Amazon, Flipkart, Myntra), stores products and reviews in PostgreSQL, generates embeddings for both text and images, and provides semantic search through a lightweight API and UI.
+
+---
+
+## Features
+
+* **Data ingestion**
+
+  * Scrape product pages (titles, descriptions, prices, reviews, images).
+  * Synthetic data generator for quick local development.
+
+* **Storage**
+
+  * PostgreSQL as the primary database.
+  * Native vector search with `pgvector`.
+  * Fallback to JSONB + Python nearest-neighbor if `pgvector` is unavailable.
+
+* **Embeddings**
+
+  * Text and image embeddings for semantic search.
+  * Batched processing to handle large datasets efficiently.
+
+* **Search API**
+
+  * Text-based semantic search.
+  * Image similarity search.
+  * REST endpoints for integration with other systems.
+
+* **Web UI**
+
+  * Minimal interface for interactive product search with thumbnails.
+
+---
 
 ## Requirements
-- Python 3.9+
-- PostgreSQL (with `pgvector` recommended). If using Docker Compose this is automated.
-- A virtualenv is recommended
 
-## Quickstart (Windows PowerShell)
+* Python **3.9+**
+* PostgreSQL (**pgvector** extension recommended)
+* Virtual environment (`venv`) suggested
+* Optional: **Docker + Docker Compose** for reproducible development
 
-1. Activate virtualenv and install requirements
+---
+
+## Installation (Windows PowerShell)
+
+1. **Set up environment**
+
 ```powershell
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-2. Ensure Postgres is running and `DATABASE_URL` is set in `.env` (example: `postgresql://postgres:postgres@db:5432/shoplensai`). If using Docker (recommended) see Docker steps below.
+2. **Configure database**
+   Ensure PostgreSQL is running and `DATABASE_URL` is set in `.env`
 
-3. Seed 100 products (two safe options)
+   ```
+   postgresql://postgres:postgres@db:5432/shoplensai
+   ```
 
-- Fast & safe: synthetic 100 Amazon.in-like products (recommended for development)
+3. **Create database tables**
+
 ```powershell
-# create 100 synthetic placeholder products
+python - <<'PY'
+from scraper.db import get_engine, Base
+eng = get_engine()
+Base.metadata.create_all(eng)
+print("tables created")
+PY
+```
+
+---
+
+## Data Seeding
+
+Two supported modes:
+
+* **Synthetic dataset (recommended for development)**
+
+```powershell
 python scripts/seed_products.py --mode synthetic --count 100
 ```
 
-- Real product pages (scrape 100 real Amazon.in results — slower, may trigger anti-bot protections)
+* **Real product scraping (Amazon.in)**
+  *(use proxies and delays to avoid blocks; respect ToS)*
+
 ```powershell
-# polite scraping, add --delay to avoid triggers (use proxies for large crawls)
 python scripts/seed_products.py --mode scrape --count 100 --delay 1.5
 ```
-Note: Scraping at scale may violate site ToS — use responsibly.
 
-4. Compute embeddings for new products (only unembedded rows)
+---
+
+## Embedding Generation
+
+Generate embeddings for products that don’t yet have them:
+
 ```powershell
-# process only missing embeddings, batched
 python -m scraper.embeddings_cli --batch-size 32 --limit 100
 ```
 
-5. Run the demo API + UI
+---
+
+## Running the Application
+
+Start API + UI locally:
+
 ```powershell
 uvicorn scraper.api:app --host 127.0.0.1 --port 8000 --reload
-# open http://127.0.0.1:8000/
 ```
 
-## Docker (optional, recommended for reproducible local dev)
-1. Copy `.env.example` → `.env` and adjust as needed.
-2. Build & start
+Access UI at: [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
+
+---
+
+## Docker Setup (Recommended)
+
+1. Copy `.env.example` → `.env` and configure.
+2. Build and start services:
+
 ```powershell
 docker-compose up --build -d
 ```
-3. Create DB tables (once)
+
+3. Initialize database tables:
+
 ```powershell
 docker-compose exec web python - <<'PY'
 from scraper.db import get_engine, Base
 eng = get_engine()
 Base.metadata.create_all(eng)
-print('tables created')
+print("tables created")
 PY
 ```
-4. Seed and run embeddings inside the container or on host as above.
 
-## Endpoints
-- POST /search/text  — body: {"query":"...","top_k":5}
-- POST /search/image — body: {"image_url":"...","top_k":5}
-- UI at `/` for interactive search and thumbnails
+---
 
-## Notes & caveats
-- Synthetic seeder is ideal to quickly populate 100 products for UI/embedding tests.
-- Scraping Amazon/Flipkart may be blocked or violate ToS — use proxies, rate-limiting, and obey robots.txt for production crawls.
-- If you do not have `pgvector` in Postgres, the project falls back to JSONB storage and Python-side nearest-neighbor as a temporary measure.
-- Embedding models can be large — prefer a GPU or run smaller batches on CPU.
+## API Endpoints
 
-## Next suggestions
-- Run the embeddings CLI after seeding so image searches are accurate.
-- Consider Docker + Docker Compose for reproducible demos.
-- For production: add a background worker to compute embeddings asynchronously and a vector index (pgvector ivf/HNSW or FAISS) for scale.
+* **POST** `/search/text`
+  Body: `{"query": "laptop bag", "top_k": 5}`
+
+* **POST** `/search/image`
+  Body: `{"image_url": "https://...jpg", "top_k": 5}`
+
+* **GET** `/`
+  Interactive UI for search and browsing results.
+
+---
+
+## Notes
+
+* Use **synthetic data** for rapid development and testing.
+* Real scraping may trigger anti-bot measures; use responsibly with rate limits and proxies.
+* Embedding models can be resource-intensive. Prefer GPUs or small batches for CPU execution.
+* 
+---
+<img width="1299" height="732" alt="Screenshot 2025-09-02 033648" src="https://github.com/user-attachments/assets/99812360-ec37-4f40-88f9-437582510865" />
+
