@@ -155,7 +155,6 @@ PY
 * Use **synthetic data** for rapid development and testing.
 * Real scraping may trigger anti-bot measures; use responsibly with rate limits and proxies.
 * Embedding models can be resource-intensive. Prefer GPUs or small batches for CPU execution.
-* 
 ---
 <img width="1299" height="732" alt="Screenshot 2025-09-02 033648" src="https://github.com/user-attachments/assets/99812360-ec37-4f40-88f9-437582510865" />
 
